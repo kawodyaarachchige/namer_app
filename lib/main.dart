@@ -1,9 +1,9 @@
-import 'package:english_words/english_words.dart';
-import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+import 'package:english_words/english_words.dart';// Package for generating random word pairs.
+import 'package:flutter/material.dart';// Package for building UI elements.
+import 'package:provider/provider.dart';// Package for managing app state.
 
 void main() {
-  runApp(MyApp());
+  runApp(MyApp()); // Entry point of the application.
 }
 
 class MyApp extends StatelessWidget {
@@ -11,37 +11,63 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Using ChangeNotifierProvider to manage app state.
     return ChangeNotifierProvider(
       create: (context) => MyAppState(),
-      child: MaterialApp(
-        title: 'Namer App',
-        theme: ThemeData(
-          useMaterial3: true,
-          colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepOrange),
-        ),
-        home: MyHomePage(),
+      child: Builder(
+        builder: (context) {
+          final appState = context.watch<MyAppState>(); // Watches for state changes.
+          return MaterialApp(
+            title: 'Namer App',
+            theme: ThemeData(
+              useMaterial3: true,
+              // Dynamic theme based on light/dark mode.
+              colorScheme: ColorScheme.fromSeed(
+                seedColor: appState.isDarkMode
+                    ? Colors.pink.shade700
+                    : Colors.pink.shade300,
+                brightness: appState.isDarkMode
+                    ? Brightness.dark
+                    : Brightness.light,
+              ),
+            ),
+            home: MyHomePage(),
+          );
+        },
       ),
     );
   }
 }
 
 class MyAppState extends ChangeNotifier {
-  var current = WordPair.random();
-  var history = <WordPair>[];
+  var current = WordPair.random(); // Current random word pair.
+  var history = <WordPair>[]; // List to maintain the history of word pairs.
+  GlobalKey? historyListKey; // Key to manage the animated list state.
+  var favorites = <WordPair>[]; // List to store favorite word pairs.
+  bool isDarkMode = false; // Flag for light/dark mode.
 
-  GlobalKey? historyListKey;
+  void toggleDarkMode() {
+    // Toggles between light and dark mode.
+    isDarkMode = !isDarkMode;
+    notifyListeners(); // Notifies listeners to rebuild UI.
+  }
 
   void getNext() {
+    // Clear the animated list before adding a new word.
+    _clearAnimatedList();
+
+    // Insert the current word pair into history.
     history.insert(0, current);
     var animatedList = historyListKey?.currentState as AnimatedListState?;
-    animatedList?.insertItem(0);
+    animatedList?.insertItem(0); // Animate the addition of the new item.
+
+    // Generate a new random word pair.
     current = WordPair.random();
     notifyListeners();
   }
 
-  var favorites = <WordPair>[];
-
   void toggleFavorite([WordPair? pair]) {
+    // Toggles the favorite status of a word pair.
     pair = pair ?? current;
     if (favorites.contains(pair)) {
       favorites.remove(pair);
@@ -52,8 +78,34 @@ class MyAppState extends ChangeNotifier {
   }
 
   void removeFavorite(WordPair pair) {
+    // Removes a word pair from favorites.
     favorites.remove(pair);
     notifyListeners();
+  }
+
+  void clearHistory() {
+    // Clears the history list with animation.
+    _clearAnimatedList();
+    notifyListeners();
+  }
+
+  void _clearAnimatedList() {
+    // Private method to clear the animated list with fade-out effect.
+    var animatedList = historyListKey?.currentState as AnimatedListState?;
+    while (history.isNotEmpty) {
+      animatedList?.removeItem(
+        0,
+        (context, animation) {
+          return FadeTransition(
+            opacity: animation,
+            child: ListTile(
+              title: Text(history[0].asLowerCase),
+            ),
+          );
+        },
+      );
+      history.removeAt(0); // Remove each item from the history list.
+    }
   }
 }
 
@@ -63,40 +115,47 @@ class MyHomePage extends StatefulWidget {
 }
 
 class _MyHomePageState extends State<MyHomePage> {
-  var selectedIndex = 0;
+  var selectedIndex = 0; // Index to manage navigation.
 
   @override
   Widget build(BuildContext context) {
+    var appState = context.watch<MyAppState>();
     var colorScheme = Theme.of(context).colorScheme;
 
-    Widget page;
+    Widget page; // Determines which page to display.
     switch (selectedIndex) {
       case 0:
-        page = GeneratorPage();
+        page = GeneratorPage(); // Home page with word pair generator.
         break;
       case 1:
-        page = FavoritesPage();
+        page = FavoritesPage(); // Favorites page.
         break;
       default:
-        throw UnimplementedError('no widget for $selectedIndex');
+        throw UnimplementedError('No widget for $selectedIndex');
     }
 
-    // The container for the current page, with its background color
-    // and subtle switching animation.
     var mainArea = ColoredBox(
       color: colorScheme.surfaceVariant,
       child: AnimatedSwitcher(
-        duration: Duration(milliseconds: 200),
+        duration: Duration(milliseconds: 200), // Smooth page transitions.
         child: page,
       ),
     );
 
     return Scaffold(
+      appBar: AppBar(
+        title: Text('Namer App'),
+        actions: [
+          IconButton(
+            icon: Icon(appState.isDarkMode ? Icons.dark_mode : Icons.light_mode),
+            onPressed: appState.toggleDarkMode, // Toggles light/dark mode.
+          ),
+        ],
+      ),
       body: LayoutBuilder(
         builder: (context, constraints) {
+          // Adaptive UI based on screen width.
           if (constraints.maxWidth < 450) {
-            // Use a more mobile-friendly layout with BottomNavigationBar
-            // on narrow screens.
             return Column(
               children: [
                 Expanded(child: mainArea),
@@ -162,12 +221,9 @@ class GeneratorPage extends StatelessWidget {
     var appState = context.watch<MyAppState>();
     var pair = appState.current;
 
-    IconData icon;
-    if (appState.favorites.contains(pair)) {
-      icon = Icons.favorite;
-    } else {
-      icon = Icons.favorite_border;
-    }
+    IconData icon = appState.favorites.contains(pair)
+        ? Icons.favorite
+        : Icons.favorite_border;
 
     return Center(
       child: Column(
@@ -175,17 +231,17 @@ class GeneratorPage extends StatelessWidget {
         children: [
           Expanded(
             flex: 3,
-            child: HistoryListView(),
+            child: HistoryListView(), // Displays the history list.
           ),
           SizedBox(height: 10),
-          BigCard(pair: pair),
+          BigCard(pair: pair), // Displays the current word pair.
           SizedBox(height: 10),
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
               ElevatedButton.icon(
                 onPressed: () {
-                  appState.toggleFavorite();
+                  appState.toggleFavorite(); // Toggles favorite.
                 },
                 icon: Icon(icon),
                 label: Text('Like'),
@@ -193,15 +249,75 @@ class GeneratorPage extends StatelessWidget {
               SizedBox(width: 10),
               ElevatedButton(
                 onPressed: () {
-                  appState.getNext();
+                  appState.getNext(); // Generates the next word pair.
                 },
                 child: Text('Next'),
               ),
             ],
           ),
+          SizedBox(height: 10),
+          ElevatedButton(
+            onPressed: appState.clearHistory, // Clears the history.
+            child: Text('Clear History'),
+          ),
           Spacer(flex: 2),
         ],
       ),
+    );
+  }
+}
+
+class FavoritesPage extends StatefulWidget {
+  @override
+  State<FavoritesPage> createState() => _FavoritesPageState();
+}
+
+class _FavoritesPageState extends State<FavoritesPage> {
+  String searchQuery = ''; // Tracks the search query.
+
+  @override
+  Widget build(BuildContext context) {
+    var appState = context.watch<MyAppState>();
+
+    var filteredFavorites = appState.favorites
+        .where((pair) => pair.asLowerCase.contains(searchQuery.toLowerCase()))
+        .toList();
+
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(8.0),
+          child: TextField(
+            decoration: InputDecoration(
+              labelText: 'Search Favorites',
+              border: OutlineInputBorder(),
+            ),
+            onChanged: (value) {
+              setState(() {
+                searchQuery = value; // Updates the search query.
+              });
+            },
+          ),
+        ),
+        Expanded(
+          child: filteredFavorites.isEmpty
+              ? Center(child: Text('No favorites found.')) // Displays if empty.
+              : ListView(
+                  children: [
+                    for (var pair in filteredFavorites)
+                      ListTile(
+                        title: Text(pair.asLowerCase),
+                        trailing: IconButton(
+                          icon: Icon(Icons.delete),
+                          onPressed: () {
+                            appState.removeFavorite(pair); // Removes favorite.
+                          },
+                        ),
+                      )
+                  ],
+                ),
+        ),
+      ],
     );
   }
 }
@@ -225,138 +341,28 @@ class BigCard extends StatelessWidget {
       color: theme.colorScheme.primary,
       child: Padding(
         padding: const EdgeInsets.all(20),
-        child: AnimatedSize(
-          duration: Duration(milliseconds: 200),
-          // Make sure that the compound word wraps correctly when the window
-          // is too narrow.
-          child: MergeSemantics(
-            child: Wrap(
-              children: [
-                Text(
-                  pair.first,
-                  style: style.copyWith(fontWeight: FontWeight.w200),
-                ),
-                Text(
-                  pair.second,
-                  style: style.copyWith(fontWeight: FontWeight.bold),
-                )
-              ],
-            ),
-          ),
+        child: Text(
+          '${pair.first} ${pair.second}', // Displays the word pair.
+          style: style,
         ),
       ),
     );
   }
 }
 
-class FavoritesPage extends StatelessWidget {
+class HistoryListView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    var theme = Theme.of(context);
     var appState = context.watch<MyAppState>();
 
-    if (appState.favorites.isEmpty) {
-      return Center(
-        child: Text('No favorites yet.'),
-      );
-    }
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.all(30),
-          child: Text('You have '
-              '${appState.favorites.length} favorites:'),
-        ),
-        Expanded(
-          // Make better use of wide windows with a grid.
-          child: GridView(
-            gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
-              maxCrossAxisExtent: 400,
-              childAspectRatio: 400 / 80,
-            ),
-            children: [
-              for (var pair in appState.favorites)
-                ListTile(
-                  leading: IconButton(
-                    icon: Icon(Icons.delete_outline, semanticLabel: 'Delete'),
-                    color: theme.colorScheme.primary,
-                    onPressed: () {
-                      appState.removeFavorite(pair);
-                    },
-                  ),
-                  title: Text(
-                    pair.asLowerCase,
-                    semanticsLabel: pair.asPascalCase,
-                  ),
-                ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class HistoryListView extends StatefulWidget {
-  const HistoryListView({Key? key}) : super(key: key);
-
-  @override
-  State<HistoryListView> createState() => _HistoryListViewState();
-}
-
-class _HistoryListViewState extends State<HistoryListView> {
-  /// Needed so that [MyAppState] can tell [AnimatedList] below to animate
-  /// new items.
-  final _key = GlobalKey();
-
-  /// Used to "fade out" the history items at the top, to suggest continuation.
-  static const Gradient _maskingGradient = LinearGradient(
-    // This gradient goes from fully transparent to fully opaque black...
-    colors: [Colors.transparent, Colors.black],
-    // ... from the top (transparent) to half (0.5) of the way to the bottom.
-    stops: [0.0, 0.5],
-    begin: Alignment.topCenter,
-    end: Alignment.bottomCenter,
-  );
-
-  @override
-  Widget build(BuildContext context) {
-    final appState = context.watch<MyAppState>();
-    appState.historyListKey = _key;
-
-    return ShaderMask(
-      shaderCallback: (bounds) => _maskingGradient.createShader(bounds),
-      // This blend mode takes the opacity of the shader (i.e. our gradient)
-      // and applies it to the destination (i.e. our animated list).
-      blendMode: BlendMode.dstIn,
-      child: AnimatedList(
-        key: _key,
-        reverse: true,
-        padding: EdgeInsets.only(top: 100),
-        initialItemCount: appState.history.length,
-        itemBuilder: (context, index, animation) {
-          final pair = appState.history[index];
-          return SizeTransition(
-            sizeFactor: animation,
-            child: Center(
-              child: TextButton.icon(
-                onPressed: () {
-                  appState.toggleFavorite(pair);
-                },
-                icon: appState.favorites.contains(pair)
-                    ? Icon(Icons.favorite, size: 12)
-                    : SizedBox(),
-                label: Text(
-                  pair.asLowerCase,
-                  semanticsLabel: pair.asPascalCase,
-                ),
-              ),
-            ),
-          );
-        },
-      ),
+    return ListView.builder(
+      itemCount: appState.history.length,
+      itemBuilder: (context, index) {
+        var pair = appState.history[index];
+        return ListTile(
+          title: Text(pair.asLowerCase), // Displays each word pair.
+        );
+      },
     );
   }
 }
