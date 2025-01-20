@@ -15,7 +15,9 @@ A Flutter application that generates random word pairs and allows users to like 
 ### Screenshots
 
 ![Home](https://imgur.com/1mqfiMX.png)
+--
 ![Favortite Page](https://imgur.com/OxcDlOi.png)
+--
 ![Dark Mode](https://imgur.com/3DJUmP0.png)
 
 This app was created as part of the [Google Developer Program](https://flutter.dev), which focuses on building beautiful, natively compiled applications for desktop, mobile, and web platforms using a single codebase with Flutter.
